@@ -22,6 +22,7 @@ def _make_args(**overrides) -> argparse.Namespace:
         "account_size": 100_000,
         "risk_pct": 0.5,
         "max_position_pct": 10.0,
+        "max_risk_pct": 8.0,
         "max_sector_pct": 30.0,
         "max_portfolio_heat_pct": 6.0,
         "target_r_multiple": 2.0,

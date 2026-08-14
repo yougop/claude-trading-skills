@@ -37,6 +37,12 @@ from risk_calculator import (
 )
 
 ACCEPTED_INPUT_VERSIONS = {"1.0"}
+# Minervini's 8% rule as the default. Configurable via --max-risk-pct because it
+# is a setup-quality heuristic ("a stop this wide means the entry is badly
+# located"), not an account-risk control -- account risk is governed by
+# --risk-pct and --max-position-pct. Keeping it as a hard, non-configurable
+# block rejects otherwise valid candidates whose actual account risk, after
+# position sizing, is a fraction of a percent.
 MAX_RISK_PCT = 8.0
 
 
@@ -172,7 +178,7 @@ def process_candidate(
         plan_eligible = (
             valid_vcp
             and rating_band in ("textbook", "strong", "good")
-            and risk_pct_worst <= MAX_RISK_PCT
+            and risk_pct_worst <= args.max_risk_pct
         )
 
         if not plan_eligible:
@@ -184,8 +190,8 @@ def process_candidate(
                 reasons.append("valid_vcp=False")
             if rating_band not in ("textbook", "strong", "good"):
                 reasons.append(f"rating_band={rating_band}")
-            if risk_pct_worst > MAX_RISK_PCT:
-                reasons.append(f"risk_pct_worst={risk_pct_worst}%>{MAX_RISK_PCT}%")
+            if risk_pct_worst > args.max_risk_pct:
+                reasons.append(f"risk_pct_worst={risk_pct_worst}%>{args.max_risk_pct}%")
             return _reject(symbol, "; ".join(reasons))
 
         return _build_actionable(
@@ -213,7 +219,7 @@ def process_candidate(
         plan_eligible = (
             valid_vcp
             and rating_band in ("textbook", "strong", "good")
-            and risk_pct_worst <= MAX_RISK_PCT
+            and risk_pct_worst <= args.max_risk_pct
             and breakout_volume
             and distance <= args.max_chase_pct
             and current_price <= worst_entry
@@ -236,8 +242,8 @@ def process_candidate(
             reasons.append(f"distance={distance}%>{args.max_chase_pct}%")
         if current_price > worst_entry:
             reasons.append(f"price={current_price}>worst_entry={worst_entry}")
-        if risk_pct_worst > MAX_RISK_PCT:
-            reasons.append(f"risk_pct_worst={risk_pct_worst}%>{MAX_RISK_PCT}%")
+        if risk_pct_worst > args.max_risk_pct:
+            reasons.append(f"risk_pct_worst={risk_pct_worst}%>{args.max_risk_pct}%")
         return _reject(symbol, "; ".join(reasons) if reasons else "ineligible Breakout")
 
     # --- Watchlist path ---
@@ -341,7 +347,7 @@ def _build_actionable(
         "plan_type": "pending_breakout",
         "decision_code": "ACTIONABLE_PREBREAKOUT",
         "decision_reason": (
-            f"valid_vcp && state=Pre-breakout && risk_worst={risk_pct_worst}% <= {MAX_RISK_PCT}%"
+            f"valid_vcp && state=Pre-breakout && risk_worst={risk_pct_worst}% <= {args.max_risk_pct}%"
         ),
         "plan_valid_for_session": str(valid_date),
         "trade_plan": {
@@ -559,6 +565,12 @@ def main():
     parser.add_argument("--account-size", type=float, required=True, help="Account equity ($)")
     parser.add_argument("--risk-pct", type=float, default=0.5, help="Base risk %% per trade")
     parser.add_argument("--max-position-pct", type=float, default=10.0)
+    parser.add_argument(
+        "--max-risk-pct",
+        type=float,
+        default=MAX_RISK_PCT,
+        help="Max worst-case entry-to-stop distance in %% (Minervini gate, default 8)",
+    )
     parser.add_argument("--max-sector-pct", type=float, default=30.0)
     parser.add_argument("--max-portfolio-heat-pct", type=float, default=6.0)
     parser.add_argument("--target-r-multiple", type=float, default=2.0)
