@@ -176,6 +176,45 @@ skills:
   - cot_crowding_report
   workflows:
   - shapiro-contrarian
+- id: crypto-asset-analysis
+  display_name: Crypto Asset Analysis
+  category: trade-planning
+  status: beta
+  summary: Deep dive on a single crypto asset across six dimensions using free keyless
+    data, with explicit coverage reporting; the crypto counterpart to us-stock-analysis.
+  timeframe: event-driven
+  difficulty: intermediate
+  integrations:
+  - id: coingecko
+    type: market_data
+    requirement: required
+    note: Free public API, no key; price/market-cap history, supply, ATH
+  - id: binance_futures
+    type: market_data
+    requirement: recommended
+    note: Public endpoints for funding, open interest, long/short; dimension skipped if unreachable
+  - id: blockchain_info
+    type: market_data
+    requirement: optional
+    note: Free on-chain charts, Bitcoin only; network-usage dimension is empty for all other assets
+  - id: alternative_me
+    type: market_data
+    requirement: optional
+    note: Fear & Greed index, market-wide rather than per asset
+  - id: snapshot_json
+    type: local_file
+    requirement: optional
+    note: Offline snapshot path (--input-json) for reproducible runs
+  inputs:
+  - coingecko_public_api
+  - funding_rates
+  - onchain_series
+  - snapshot_json
+  outputs:
+  - dimension_readings_with_percentiles
+  - data_coverage_report
+  - narrative_research_prompts
+  workflows: []
 - id: crypto-regime-analyzer
   display_name: Crypto Regime Analyzer
   category: market-regime

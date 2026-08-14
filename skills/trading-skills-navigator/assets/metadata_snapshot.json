@@ -98,6 +98,42 @@
       "timeframe": "weekly"
     },
     {
+      "category": "trade-planning",
+      "difficulty": "intermediate",
+      "display_name": "Crypto Asset Analysis",
+      "id": "crypto-asset-analysis",
+      "integrations": [
+        {
+          "id": "coingecko",
+          "requirement": "required",
+          "type": "market_data"
+        },
+        {
+          "id": "binance_futures",
+          "requirement": "recommended",
+          "type": "market_data"
+        },
+        {
+          "id": "blockchain_info",
+          "requirement": "optional",
+          "type": "market_data"
+        },
+        {
+          "id": "alternative_me",
+          "requirement": "optional",
+          "type": "market_data"
+        },
+        {
+          "id": "snapshot_json",
+          "requirement": "optional",
+          "type": "local_file"
+        }
+      ],
+      "status": "beta",
+      "summary": "Deep dive on a single crypto asset across six dimensions using free keyless data, with explicit coverage reporting; the crypto counterpart to us-stock-analysis.",
+      "timeframe": "event-driven"
+    },
+    {
       "category": "market-regime",
       "difficulty": "intermediate",
       "display_name": "Crypto Regime Analyzer",
