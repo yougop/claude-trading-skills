@@ -322,9 +322,14 @@ class FMPClient:
         return data
 
     def get_batch_quotes(self, symbols: list[str]) -> dict[str, dict]:
-        """Fetch quotes for a list of symbols, batching up to 5 per request"""
+        """Fetch quotes for a list of symbols, one per request.
+
+        FMP's stable /quote endpoint only accepts a single `symbol` value;
+        a comma-separated multi-symbol value is rejected (legacy v3 batch
+        behavior, retired 2025-08-31). Batch here at the call level instead.
+        """
         results = {}
-        batch_size = 5
+        batch_size = 1
         for i in range(0, len(symbols), batch_size):
             batch = symbols[i : i + batch_size]
             batch_str = ",".join(batch)
