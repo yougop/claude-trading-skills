@@ -84,3 +84,14 @@ def test_script_disclaims_producing_a_rating() -> None:
 
 def test_free_and_keyless_claim_is_stated() -> None:
     assert "keyless" in _skill_text()
+
+
+def test_core_diagnostic_contract_is_documented() -> None:
+    # The two properties that make the verdict trustworthy: one window for both
+    # sides, and only the two demand-bearing series voting. If either stops
+    # being stated, a future edit can quietly break it.
+    text = _skill_text()
+
+    assert "core diagnostic" in text
+    assert "same 30-day window" in text
+    assert "Only fees and active addresses count toward the verdict" in text

@@ -107,6 +107,142 @@ def build_network_usage(data: dict) -> dict[str, Any]:
     return out
 
 
+# The two on-chain series the diagnostic is allowed to use. Deliberately not
+# all four: transaction count is distorted by batching and layer-2, and hash
+# rate follows mining economics rather than demand. Feeding either into the
+# verdict would let a mining-difficulty cycle masquerade as a demand signal.
+DIAGNOSTIC_USAGE_SERIES = ("fees_usd", "active_addresses")
+
+# Readings keyed by (price trend, usage trend). The four corners come from
+# references/onchain-metrics.md; the sideways row is filled in too, because a
+# flat price is the normal state of a ranging market and "unklar" would throw
+# away a real signal. Only genuinely contradictory usage falls through to the
+# default.
+QUADRANTS: dict[tuple[str, str], tuple[str, str]] = {
+    ("rising", "rising"): (
+        "bestaetigt",
+        "Preis und Nutzung steigen gemeinsam — das Netzwerk wird mehr genutzt und "
+        "hoeher bewertet. Keine Divergenz.",
+    ),
+    ("rising", "falling"): (
+        "warnung_bewertung_ohne_nutzung",
+        "**Die wichtigste Warnung:** Der Preis steigt, waehrend die Nutzung faellt. "
+        "Das Aktien-Pendant ist ein fallender Umsatz bei steigendem Multiple.",
+    ),
+    ("rising", "flat"): (
+        "anstieg_ohne_bestaetigung",
+        "Der Preis steigt, die Nutzung stagniert. Keine Bestaetigung — abgeschwaechte "
+        "Form der Bewertungswarnung.",
+    ),
+    ("falling", "rising"): (
+        "konstruktiv_mean_reversion",
+        "Konstruktiv: Die Nutzung waechst, waehrend der Preis korrigiert. Das ist der "
+        "Fall, in dem Mean Reversion ueberhaupt begruendbar ist.",
+    ),
+    ("falling", "falling"): (
+        "netzwerk_verliert_geschaeft",
+        "Das Netzwerk verliert tatsaechlich Geschaeft — Preis und Nutzung fallen "
+        "zusammen. Chartstruktur repariert das nicht.",
+    ),
+    ("falling", "flat"): (
+        "korrektur_ohne_nutzungsverlust",
+        "Der Preis korrigiert, die Nutzung haelt sich. Schwaechere Variante des "
+        "Mean-Reversion-Falls: kein Verfall, aber auch kein Wachstum.",
+    ),
+    ("flat", "rising"): (
+        "aufbau_unter_seitwaertskurs",
+        "Die Nutzung waechst, waehrend der Preis in einer Spanne laeuft. Konstruktiv — "
+        "das ist Basisbildung, nicht Verfall. Es fehlt der Ausbruch, nicht die Substanz.",
+    ),
+    ("flat", "falling"): (
+        "warnung_nutzung_erodiert",
+        "Der Preis haelt, die Nutzung erodiert. Die Spanne wird von Preisstabilitaet "
+        "getragen, nicht von Nachfrage — bruechiger als der Chart aussieht.",
+    ),
+    ("flat", "flat"): (
+        "ruhelage",
+        "Weder Preis noch Nutzung bewegen sich. Keine Aussage in eine der beiden "
+        "Richtungen; abwarten kostet hier nichts.",
+    ),
+}
+
+
+def build_core_diagnostic(data: dict) -> dict[str, Any]:
+    """Answer the one question that precedes every thesis: usage or only price?
+
+    The equity methodology asks whether earnings fell or only the multiple. The
+    crypto translation is whether network usage fell or only the price, and it
+    sorts out roughly half of any candidate list.
+
+    Both sides are classified with `trend_direction` over the same 30-day
+    window rather than by comparing two endpoints. Two reasons: a least-squares
+    slope is not hostage to a single spike day at either end, and it carries its
+    own flat band, so no new threshold has to be invented here. Inventing one is
+    exactly the failure this skill exists to avoid.
+    """
+    onchain = data.get("onchain") or {}
+    prices = (data.get("history") or {}).get("prices") or []
+
+    if not onchain:
+        return {
+            "available": False,
+            "reason": "braucht On-Chain-Nutzungsdaten — die gibt es kostenlos nur fuer Bitcoin",
+        }
+
+    price_trend = m.trend_direction(prices, 30)
+    if price_trend is None:
+        return {"available": False, "reason": "zu wenig Kurshistorie fuer eine Trendaussage"}
+
+    usage: dict[str, Any] = {}
+    for key in DIAGNOSTIC_USAGE_SERIES:
+        series = onchain.get(key)
+        trend = m.trend_direction(series, 30) if series else None
+        if trend is None:
+            continue
+        usage[key] = {"trend_30d": trend, "change_30d_pct": m.pct_change(series, 30)}
+
+    if not usage:
+        return {"available": False, "reason": "keine verwertbare Nutzungsreihe"}
+
+    trends = {block["trend_30d"] for block in usage.values()}
+    if len(trends) == 1:
+        usage_verdict = trends.pop()
+    elif trends <= {"rising", "flat"}:
+        usage_verdict = "rising"
+    elif trends <= {"falling", "flat"}:
+        usage_verdict = "falling"
+    else:
+        # Fees and addresses genuinely point in opposite directions. Forcing a
+        # quadrant here would manufacture a verdict the data does not support.
+        usage_verdict = "mixed"
+
+    # The only fall-through left is contradictory usage, where naming a
+    # quadrant would manufacture a verdict the data does not support.
+    quadrant, reading = QUADRANTS.get(
+        (price_trend, usage_verdict),
+        (
+            "unklar",
+            "Kein Urteil: Gebuehren und aktive Adressen zeigen in verschiedene "
+            "Richtungen. Welche der beiden fuehrt, laesst sich aus diesen Daten "
+            "nicht entscheiden — Gebuehren sind die verlaesslichere Reihe, aber "
+            "auch die spitzere.",
+        ),
+    )
+
+    return {
+        "available": True,
+        "price_trend_30d": price_trend,
+        "price_change_30d_pct": m.pct_change(prices, 30),
+        "usage": usage,
+        "usage_verdict": usage_verdict,
+        "quadrant": quadrant,
+        "reading": reading,
+        "basis": "Gebuehren und aktive Adressen, 30-Tage-Trend. Transaktionszahl und "
+        "Hash-Rate fliessen bewusst nicht ein — Batching bzw. Mining-Oekonomie "
+        "verzerren beide als Nachfragemass.",
+    }
+
+
 def build_leverage(data: dict) -> dict[str, Any]:
     """Crypto's stand-in for debt: how much leverage is stacked on the price?"""
     funding = data.get("funding") or []
@@ -183,10 +319,51 @@ def analyse(data: dict, log: ds.FetchLog) -> dict[str, Any]:
         "ticker": data.get("ticker"),
         "name": profile.get("name"),
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "core_diagnostic": build_core_diagnostic(data),
         "dimensions": dims,
         "coverage": log.as_dict(),
         "known_gaps": ds.ONCHAIN_GAPS,
     }
+
+
+_TREND_WORDS = {"rising": "steigend", "falling": "fallend", "flat": "seitwaerts"}
+_USAGE_LABELS = {"fees_usd": "Gebuehren", "active_addresses": "Aktive Adressen"}
+
+
+def _render_core_diagnostic(diag: dict) -> list[str]:
+    """The headline section: which quadrant, stated outright.
+
+    Goes first, before any table. It is the question the workspace methodology
+    asks before every thesis, and leaving the reader to assemble it from four
+    rows further down defeats the purpose of asking it.
+    """
+    lines = ["## Kerndiagnose — faellt die Nutzung oder nur der Preis?", ""]
+    if not diag.get("available"):
+        return lines + [
+            f"**Nicht beantwortbar** — {diag.get('reason', 'unbekannt')}.",
+            "",
+            "Ohne diese Antwort fehlt der Analyse ihr wichtigstes Sortierkriterium. "
+            "Das ist eine echte Luecke, kein Formfehler.",
+            "",
+        ]
+
+    price_word = _TREND_WORDS.get(diag["price_trend_30d"], diag["price_trend_30d"])
+    usage_word = _TREND_WORDS.get(diag["usage_verdict"], "uneinheitlich")
+    parts = [
+        f"{_USAGE_LABELS.get(k, k)} {_TREND_WORDS.get(v['trend_30d'], v['trend_30d'])} "
+        f"({_fmt(v.get('change_30d_pct'), ' %')})"
+        for k, v in diag["usage"].items()
+    ]
+
+    return lines + [
+        f"**Preis {price_word}** ({_fmt(diag.get('price_change_30d_pct'), ' %')} in 30 Tagen) · "
+        f"**Nutzung {usage_word}** — {', '.join(parts)}.",
+        "",
+        diag["reading"],
+        "",
+        f"*Basis: {diag['basis']}*",
+        "",
+    ]
 
 
 def render_markdown(result: dict) -> str:
@@ -205,6 +382,9 @@ def render_markdown(result: dict) -> str:
         "",
         f"Erzeugt {result['generated_at']} · quantitativer Teil, ohne Narrativ und Katalysatoren.",
         "",
+    ]
+    lines += _render_core_diagnostic(result.get("core_diagnostic") or {})
+    lines += [
         "## Kursstruktur",
         "",
         "| Groesse | Wert |",

@@ -50,7 +50,25 @@ python3 skills/crypto-asset-analysis/scripts/crypto_asset_analysis.py \
 Writes `crypto_asset_<ticker>_<date>.json` and `.md`. Takes 30-90 seconds;
 CoinGecko rate-limits the free tier and the client backs off rather than failing.
 
-**Read the coverage section first, before any number.** It lists what loaded and
+**The report opens with the core diagnostic** — the quadrant formed by the
+30-day price trend against the 30-day usage trend, stated outright rather than
+left for the reader to assemble. It answers the question the workspace
+methodology puts before every thesis: *did usage fall, or only the price?*
+
+Two things about how it is built, because both are easy to get wrong by hand:
+
+- **Both sides use the same 30-day window.** Comparing a 90-day price move
+  against a 30-day usage trend is the obvious mistake and it flatters the
+  constructive reading.
+- **Only fees and active addresses count toward the verdict.** Transaction
+  count is distorted by batching and layer-2; hash rate follows mining
+  economics, not demand. Both are still reported, neither votes.
+
+It refuses to answer in exactly one case: when fees and addresses point in
+opposite directions. A sideways price still gets a reading — a ranging market
+is normal, and the usage half still says something.
+
+**Read the coverage section next, before any number.** It lists what loaded and
 what did not. A missing source is never imputed — a gap stays a gap. Two failure
 modes are called out specifically:
 
@@ -106,7 +124,12 @@ squeeze, and it is the single most useful thing the derivatives data provides.
 
 **Falling network usage with a rising price is the clearest bearish divergence
 crypto offers** — the equivalent of revenue falling while the multiple expands.
-Available for BTC only.
+Available for BTC only, and surfaced by the core diagnostic as
+`warnung_bewertung_ohne_nutzung`.
+
+**Do not overrule the diagnostic by eye.** If it says `unklar`, fees and
+addresses genuinely disagree; picking the one that suits the thesis is how a
+measurement becomes a rationalisation.
 
 **Relative strength against BTC is undefined for BTC.** The script returns None
 rather than a structural zero. Never report BTC as "underperforming BTC".

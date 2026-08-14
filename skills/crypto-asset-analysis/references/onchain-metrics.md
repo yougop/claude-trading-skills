@@ -81,12 +81,30 @@ The single question worth asking:
 
 > **Is usage confirming the price, or diverging from it?**
 
-| Price | Fees + addresses | Reading |
-|---|---|---|
-| rising | rising | confirmed — the network is being used more and valued more |
-| rising | falling | **the important warning** — multiple expansion without usage |
-| falling | rising | constructive — usage holds while price corrects, the mean-reversion case |
-| falling | falling | the network is genuinely losing business; structure will not save it |
+The script answers it directly in the report's opening section. This table is
+what it is answering with — the `quadrant` code is what lands in the JSON:
+
+| Price | Fees + addresses | Reading | `quadrant` |
+|---|---|---|---|
+| rising | rising | confirmed — used more and valued more | `bestaetigt` |
+| rising | falling | **the important warning** — multiple expansion without usage | `warnung_bewertung_ohne_nutzung` |
+| rising | flat | rise without confirmation | `anstieg_ohne_bestaetigung` |
+| falling | rising | constructive — the mean-reversion case | `konstruktiv_mean_reversion` |
+| falling | falling | genuinely losing business; structure will not save it | `netzwerk_verliert_geschaeft` |
+| falling | flat | correction without usage loss | `korrektur_ohne_nutzungsverlust` |
+| flat | rising | base building under a range | `aufbau_unter_seitwaertskurs` |
+| flat | falling | the range rests on price, not demand | `warnung_nutzung_erodiert` |
+| flat | flat | nothing moving either way | `ruhelage` |
+| any | contradictory | no verdict — fees and addresses disagree | `unklar` |
+
+**Both trends are measured over the same 30 days**, by least-squares slope
+rather than by comparing two endpoints — a single spike day at either end must
+not decide the verdict.
+
+**Only fees and active addresses vote.** Transaction count and hash rate are
+reported but excluded, for the reasons given above: batching distorts the first,
+mining economics drive the second. Letting a difficulty cycle vote on demand
+would be a category error.
 
 ## Rules for using percentiles here
 
