@@ -54,7 +54,13 @@ def fetch_price_data(ticker: str, start_date: str, end_date: str, api_key: str) 
                 continue
             data = resp.json()
             historical = None
-            if isinstance(data, dict) and "historical" in data:
+            # /stable/historical-price-eod/full antwortet mit einem blanken
+            # Array. Ohne diesen Zweig faellt der Aufruf stillschweigend auf
+            # den v3-Endpoint zurueck, der auf FMP Starter 403 liefert — und
+            # ohne Kursdaten wird jede Rendite 0, also jedes Ergebnis NEUTRAL.
+            if isinstance(data, list):
+                historical = data
+            elif isinstance(data, dict) and "historical" in data:
                 historical = data["historical"]
             elif isinstance(data, dict) and "historicalStockList" in data:
                 for entry in data["historicalStockList"]:
