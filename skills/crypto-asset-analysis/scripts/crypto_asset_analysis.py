@@ -199,7 +199,9 @@ def build_core_diagnostic(data: dict) -> dict[str, Any]:
         trend = m.trend_direction(series, 30) if series else None
         if trend is None:
             continue
-        usage[key] = {"trend_30d": trend, "change_30d_pct": m.pct_change(series, 30)}
+        usage[key] = {"trend_30d": trend,
+                      "median_change_30d_pct": m.median_change(series, 30),
+                      "change_30d_pct": m.pct_change(series, 30)}
 
     if not usage:
         return {"available": False, "reason": "keine verwertbare Nutzungsreihe"}
@@ -351,7 +353,7 @@ def _render_core_diagnostic(diag: dict) -> list[str]:
     usage_word = _TREND_WORDS.get(diag["usage_verdict"], "uneinheitlich")
     parts = [
         f"{_USAGE_LABELS.get(k, k)} {_TREND_WORDS.get(v['trend_30d'], v['trend_30d'])} "
-        f"({_fmt(v.get('change_30d_pct'), ' %')})"
+        f"({_fmt(v.get('median_change_30d_pct'), ' %')})"
         for k, v in diag["usage"].items()
     ]
 

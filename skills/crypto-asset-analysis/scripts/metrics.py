@@ -19,6 +19,7 @@ arguments so the tests can be exhaustive.
 from __future__ import annotations
 
 import math
+import statistics
 from collections.abc import Iterable, Sequence
 
 # Perpetual funding is quoted per 8h interval -> 3 payments a day.
@@ -74,6 +75,31 @@ def pct_change(values: Sequence[float | None], lookback: int) -> float | None:
     if old == 0:
         return None
     return round((new - old) / old * 100.0, 2)
+
+
+def median_change(values: Sequence[float | None], window: int = 30) -> float | None:
+    """Change between the median of the two halves of the window, in percent.
+
+    Companion to `trend_direction`, and the reason it exists is a
+    self-contradicting report line. The diagnostic paired a least-squares slope
+    ("rising") with an endpoint-to-endpoint change (-12.5%) — two measures of
+    different robustness, printed as if they agreed. BTC transaction fees on
+    2026-08-15: first day 240k, last day 210k, but the median of the first half
+    was 201k against 221k in the second. The slope was right; the endpoint
+    comparison was hostage to one spiky day at the start.
+
+    A robust direction deserves a robust magnitude beside it.
+    """
+    vals = _clean(values)
+    if len(vals) < window or window < 4:
+        return None
+    fenster = vals[-window:]
+    half = len(fenster) // 2
+    a = statistics.median(fenster[:half])
+    b = statistics.median(fenster[half:])
+    if a == 0:
+        return None
+    return round((b / a - 1) * 100.0, 2)
 
 
 def drawdown_from_high(values: Sequence[float | None]) -> float | None:
