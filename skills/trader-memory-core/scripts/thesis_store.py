@@ -2866,6 +2866,7 @@ def mark_reviewed(
     review_date: str,
     outcome: str = "OK",
     notes: str | None = None,
+    review_interval_days: int | None = None,
 ) -> dict:
     """Record a review and advance next_review_date.
 
@@ -2891,6 +2892,17 @@ def mark_reviewed(
     if thesis["status"] in _TERMINAL_STATUSES:
         raise ValueError(f"Cannot review terminal thesis ({thesis['status']})")
 
+    # Das Review-Intervall ist bei der Anlage fest 30 Tage. Playbooks haben
+    # aber eigene Horizonte -- Stockbee Momentum Burst 2-5 Sessions, PEAD 2-6
+    # Wochen. Ohne setzbares Intervall bekommt ein 3-Tage-Setup denselben
+    # 30-Tage-Rhythmus wie eine Positionstrade, und der Horizont geht beim
+    # Registrieren verloren.
+    if review_interval_days is not None:
+        if not isinstance(review_interval_days, int) or review_interval_days < 1:
+            raise ValueError(
+                f"review_interval_days must be a positive int, got {review_interval_days!r}"
+            )
+        thesis["monitoring"]["review_interval_days"] = review_interval_days
     interval = thesis["monitoring"].get("review_interval_days", 30)
     review_dt = datetime.fromisoformat(f"{review_date}T00:00:00+00:00")
     next_review = (review_dt + timedelta(days=interval)).strftime("%Y-%m-%d")
@@ -3195,6 +3207,9 @@ def main(argv: list[str] | None = None) -> int:
     mr_p.add_argument("--review-date", default=datetime.now(timezone.utc).strftime("%Y-%m-%d"))
     mr_p.add_argument("--outcome", default="OK", choices=["OK", "WARN", "REVIEW"])
     mr_p.add_argument("--notes", default=None)
+    mr_p.add_argument("--review-interval-days", type=int, default=None,
+                      help="Setzt das Review-Intervall dauerhaft (z. B. 3 fuer "
+                           "Stockbee Momentum Burst, 14 fuer PEAD)")
 
     # transition (IDEA → ENTRY_READY); --event-date backdates the history stamp
     tr_p = sub.add_parser("transition", help="Transition thesis status (e.g. ENTRY_READY)")
@@ -3348,6 +3363,7 @@ def main(argv: list[str] | None = None) -> int:
             review_date=args.review_date,
             outcome=args.outcome,
             notes=args.notes,
+            review_interval_days=args.review_interval_days,
         )
         print(
             f"Reviewed {args.thesis_id}: {args.outcome}, next review: "
