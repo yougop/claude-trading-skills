@@ -1,0 +1,88 @@
+# Handelsparameter — verbindliche Werte für alle Skill-Aufrufe
+#
+# Diese Datei steht bewusst neben den Manifesten in `skillsets/` und
+# `workflows/`. Deren README gilt auch hier:
+#
+#   "If any prose elsewhere disagrees with a manifest here, the YAML is correct."
+#
+# Wer einen Wert in Prosa findet, der von hier abweicht, hat eine veraltete
+# Stelle gefunden — nicht eine zweite Meinung.
+#
+# Aufruf immer mit den Flags aus `flag:`. Ein Skill, der einen Wert nicht als
+# Flag annimmt, ist unter `nicht_konfigurierbar` vermerkt.
+
+schema_version: 1
+festgelegt: 2026-08-14
+geprueft: 2026-08-15
+
+konto:
+  typ: paper
+  broker: alpaca
+  groesse_usd: 100000
+  # Der Skill rechnet gegen diesen Wert, nicht gegen die tatsaechliche Equity.
+  # Bei groesserer Abweichung nachziehen -- sonst sizen wir gegen eine Fiktion.
+
+risiko:
+  risiko_je_trade_pct:
+    wert: 1.0
+    flag: "--risk-pct 1.0"
+    skills: [position-sizer, breakout-trade-planner]
+
+  positionsgrenze_pct:
+    wert: 15
+    flag: "--max-position-pct 15"
+    skills: [position-sizer, breakout-trade-planner]
+
+  sektorgrenze_pct:
+    wert: 30
+    flag: "--max-sector-pct 30"
+    skills: [position-sizer]
+
+  portfolio_heat_pct:
+    wert: 6
+    flag: "--max-portfolio-heat-pct 6"
+    skills: [breakout-trade-planner]
+
+  max_stopdistanz_pct:
+    wert: 12
+    flag: "--max-risk-pct 12"
+    skills: [breakout-trade-planner, stockbee-momentum-burst-screener,
+             stockbee-exhaustion-hammer-screener]
+    # Minervini-Gate. Ein SETUP-Qualitaetskriterium ("so weiter Stop heisst,
+    # der Einstieg sitzt falsch"), keine Risikokontrolle -- das Risiko regelt
+    # das Sizing. Upstream-Default ist 8 und fest verdrahtet; unser Fork macht
+    # ihn ueber das Flag konfigurierbar.
+
+# Voreinstellungen des Skill-Autors, von uns uebernommen und am 15.8.2026
+# ausdruecklich bestaetigt. `drawdown-circuit-breaker` liest sie ueber
+# --max-daily-loss-pct / --losing-streak-n / --cooldown-hours usw.
+circuit_breaker:
+  max_tagesverlust_pct: 2.0
+  verluststraehne_n: 2
+  cooldown_stunden: 24
+  wochen_drawdown_pct: 5.0
+  monats_drawdown_pct: 8.0
+
+# Warum diese Werte -- die Herleitung, nicht die Erzaehlung:
+# Mit den alten Werten (Grenze 10 %, Gate 8 %) war 1 % Risiko mathematisch
+# unmoeglich: dafuer braeuchte es 10 % Stopdistanz, die das 8 %-Gate blockiert.
+# Tatsaechlich lagen HWM/ANET/CSCO bei 0,20-0,31 %. Die Positionsgrenze band
+# immer, das Risikobudget nie. Ab 6,7 % Stopdistanz bindet jetzt das Budget.
+# Enge Stops bleiben bewusst konservativ (2,5 % Stop -> 0,38 % Risiko), denn
+# volles Risiko waere dort eine 41 %-Position.
+#
+# Belege: Vault -> 01_Wiki/Regeln-und-ihre-Vorfaelle
+
+nicht_konfigurierbar:
+  - was: "time_in_force: gtc bei Schutz-Orders"
+    warum: >-
+      Kommt in keiner SKILL.md und keiner Referenz des Sets vor. Broker-Wissen,
+      das das Skillset nicht traegt. Steht deshalb als harte Regel in CLAUDE.md.
+  - was: "Earnings-Datum in der These"
+    warum: >-
+      Weder trader-memory-core noch pre-trade-discipline-gate kennen ein Feld
+      dafuer. earnings-calendar liefert die Daten, erzwingt aber nichts.
+  - was: "Stop-Aenderungen nach dem Einstieg"
+    warum: >-
+      pre-trade-discipline-gate prueft stop_predefined beim EINSTIEG. Danach
+      ueberwacht kein Skill, ob ein Stop gelockert oder entfernt wird.
