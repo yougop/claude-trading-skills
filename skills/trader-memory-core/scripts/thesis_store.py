@@ -851,6 +851,25 @@ def _save_thesis(state_dir: Path, thesis: dict) -> None:
     _atomic_write_yaml(path, thesis)
 
 
+# Review-Intervall je Setup, abgeleitet aus dem Playbook-Horizont.
+#
+# Ohne diese Ableitung bekommt JEDE These 30 Tage -- ein Momentum-Burst-Setup
+# mit 2-5 Sessions Horizont genauso wie ein Positionstrade. Die Folge ist nicht
+# nur ein zu seltener Review: Der Playbook-Horizont geht beim Registrieren
+# verloren und die Position laeuft unbemerkt ueber ihr Zeitfenster hinaus.
+#
+# Eingetragen wird nur, wo ein Playbook einen Horizont NENNT. Setups ohne
+# Playbook behalten bewusst den 30-Tage-Standard, statt eine Zahl zu erfinden.
+PLAYBOOK_REVIEW_INTERVALS = {
+    # Stockbee Momentum Burst: "a 2-5 session swing"
+    "stockbee_momentum_burst": 3,
+    # PEAD: "The hold is 2-6 weeks"
+    "earnings_drift": 14,
+    "pead": 14,
+}
+DEFAULT_REVIEW_INTERVAL_DAYS = 30
+
+
 def _default_thesis() -> dict:
     """Return a thesis template with all fields set to defaults."""
     return {
@@ -889,7 +908,7 @@ def _default_thesis() -> dict:
         "position": None,
         "market_context": None,
         "monitoring": {
-            "review_interval_days": 30,
+            "review_interval_days": DEFAULT_REVIEW_INTERVAL_DAYS,
             "next_review_date": None,
             "last_review_date": None,
             "review_status": "OK",
@@ -1021,8 +1040,18 @@ def _build_thesis_for_registration(thesis_data: dict) -> dict:
     if "origin" in thesis_data:
         thesis["origin"].update(thesis_data["origin"])
 
+    # Playbook-Horizont ableiten -- aber nur, wenn der Aufrufer nichts
+    # ausdruecklich gesetzt hat. Eine explizite Angabe schlaegt die Ableitung.
+    explizit = "monitoring" in thesis_data and "review_interval_days" in (
+        thesis_data.get("monitoring") or {}
+    )
+    if not explizit:
+        abgeleitet = PLAYBOOK_REVIEW_INTERVALS.get(thesis.get("setup_type"))
+        if abgeleitet:
+            thesis["monitoring"]["review_interval_days"] = abgeleitet
+
     # Set next_review_date based on source date (not wall-clock)
-    interval = thesis["monitoring"].get("review_interval_days", 30)
+    interval = thesis["monitoring"].get("review_interval_days", DEFAULT_REVIEW_INTERVAL_DAYS)
     base_dt = datetime.fromisoformat(source_base)
     next_review = (base_dt + timedelta(days=interval)).strftime("%Y-%m-%d")
     thesis["monitoring"]["next_review_date"] = next_review
@@ -2903,7 +2932,7 @@ def mark_reviewed(
                 f"review_interval_days must be a positive int, got {review_interval_days!r}"
             )
         thesis["monitoring"]["review_interval_days"] = review_interval_days
-    interval = thesis["monitoring"].get("review_interval_days", 30)
+    interval = thesis["monitoring"].get("review_interval_days", DEFAULT_REVIEW_INTERVAL_DAYS)
     review_dt = datetime.fromisoformat(f"{review_date}T00:00:00+00:00")
     next_review = (review_dt + timedelta(days=interval)).strftime("%Y-%m-%d")
 
