@@ -867,6 +867,27 @@ PLAYBOOK_REVIEW_INTERVALS = {
     "earnings_drift": 14,
     "pead": 14,
 }
+# Und fuer noch nicht eingegangene Ideen (Status IDEA) gilt eine ANDERE Frage:
+# nicht "wie lange halte ich", sondern "wie lange bleibt der Trigger gueltig".
+#
+# Ein Exhaustion Hammer ist ein Einzelkerzen-Ereignis -- er loest binnen weniger
+# Tage aus oder ist tot. Mit dem 30-Tage-Standard kam eine solche Idee erst
+# sechs Wochen nach dem Signal wieder auf den Tisch, wenn die Trigger-Referenz
+# laengst historisch ist. Themen- und Bewertungsideen dagegen verfallen nicht
+# in Tagen; sie behalten den Standard.
+IDEA_REVIEW_INTERVALS = {
+    # Ereignis-Setups: der Trigger verfaellt in Tagen
+    "exhaustion_hammer": 3,
+    "stockbee_exhaustion_hammer": 3,
+    "stockbee_momentum_burst": 3,
+    "episodic_pivot": 3,
+    # Sich entwickelnde Setups: die Basis braucht Zeit, die Pruefung nicht
+    "vcp": 7,
+    "vcp_developing": 7,
+    "canslim": 7,
+    # Alles andere behaelt DEFAULT_REVIEW_INTERVAL_DAYS.
+}
+
 DEFAULT_REVIEW_INTERVAL_DAYS = 30
 
 
@@ -1046,7 +1067,10 @@ def _build_thesis_for_registration(thesis_data: dict) -> dict:
         thesis_data.get("monitoring") or {}
     )
     if not explizit:
-        abgeleitet = PLAYBOOK_REVIEW_INTERVALS.get(thesis.get("setup_type"))
+        # Neu registriert heisst Status IDEA -- also zaehlt die Gueltigkeit des
+        # Triggers, nicht die spaetere Haltedauer. Die Haltedauer greift erst
+        # beim Uebergang nach ACTIVE, siehe open_position().
+        abgeleitet = IDEA_REVIEW_INTERVALS.get(thesis.get("setup_type"))
         if abgeleitet:
             thesis["monitoring"]["review_interval_days"] = abgeleitet
 
@@ -2497,6 +2521,16 @@ def open_position(
 
     history_at = event_date or now
     thesis["status"] = "ACTIVE"
+    # Ab hier zaehlt die Haltedauer statt der Trigger-Gueltigkeit. Ohne diesen
+    # Wechsel behielte eine eingegangene Position die kurze Ideen-Kadenz -- oder
+    # umgekehrt den 30-Tage-Standard, obwohl ihr Playbook 2-5 Sitzungen vorsieht.
+    # Gibt es fuer das Setup keinen Playbook-Horizont, bleibt die Ideen-Kadenz
+    # stehen -- bewusst. Sie auf den 30-Tage-Standard zurueckzusetzen waere ein
+    # Rueckschritt: ein Umkehr-Setup ohne dokumentierte Haltedauer alle drei
+    # Tage anzusehen ist allemal besser als einmal im Monat.
+    _horizont = PLAYBOOK_REVIEW_INTERVALS.get(thesis.get("setup_type"))
+    if _horizont:
+        thesis["monitoring"]["review_interval_days"] = _horizont
     thesis["status_history"].append({"status": "ACTIVE", "at": history_at, "reason": reason})
     thesis["updated_at"] = now
 
@@ -2628,6 +2662,16 @@ def _open_futures_position(
 
     history_at = event_date or now
     thesis["status"] = "ACTIVE"
+    # Ab hier zaehlt die Haltedauer statt der Trigger-Gueltigkeit. Ohne diesen
+    # Wechsel behielte eine eingegangene Position die kurze Ideen-Kadenz -- oder
+    # umgekehrt den 30-Tage-Standard, obwohl ihr Playbook 2-5 Sitzungen vorsieht.
+    # Gibt es fuer das Setup keinen Playbook-Horizont, bleibt die Ideen-Kadenz
+    # stehen -- bewusst. Sie auf den 30-Tage-Standard zurueckzusetzen waere ein
+    # Rueckschritt: ein Umkehr-Setup ohne dokumentierte Haltedauer alle drei
+    # Tage anzusehen ist allemal besser als einmal im Monat.
+    _horizont = PLAYBOOK_REVIEW_INTERVALS.get(thesis.get("setup_type"))
+    if _horizont:
+        thesis["monitoring"]["review_interval_days"] = _horizont
     thesis["status_history"].append({"status": "ACTIVE", "at": history_at, "reason": reason})
     thesis["updated_at"] = now
 
