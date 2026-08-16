@@ -366,6 +366,46 @@ class FMPClient:
                     results[profile.get("symbol", symbol)] = profile
         return results
 
+    def get_market_caps_bulk(self, min_market_cap: float) -> dict[str, float]:
+        """Marktkapitalisierung aller US-Titel oberhalb einer Schwelle -- ein Aufruf.
+
+        Fork-Ergaenzung. ``get_company_profiles`` braucht einen Aufruf JE Symbol;
+        bei einem Earnings-Kalender mit ueber tausend Symbolen ist das Budget
+        erschoepft, bevor Phase 2 beginnt (gemessen 16.8.2026: 900/900 Calls,
+        kein einziger Kandidat). ``company-screener`` liefert dieselbe Groesse
+        fuer alle Titel in einer Antwort.
+
+        Returns:
+            symbol -> marketCap. Leeres Dict, wenn der Endpoint nichts liefert;
+            der Aufrufer faellt dann auf die Einzelprofile zurueck.
+        """
+        cache_key = f"mktcap_bulk_{int(min_market_cap)}"
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+
+        url = "https://financialmodelingprep.com/stable/company-screener"
+        params = {
+            "marketCapMoreThan": int(min_market_cap),
+            "isEtf": "false",
+            "isFund": "false",
+            "exchange": "NASDAQ,NYSE,AMEX",
+            "limit": 10000,
+        }
+        data = self._rate_limited_get(url, params)
+        if not isinstance(data, list) or not data:
+            return {}
+
+        caps = {}
+        for eintrag in data:
+            if not isinstance(eintrag, dict):
+                continue
+            symbol = eintrag.get("symbol")
+            cap = eintrag.get("marketCap")
+            if symbol and isinstance(cap, (int, float)):
+                caps[symbol] = float(cap)
+        self.cache[cache_key] = caps
+        return caps
+
     def get_historical_prices(self, symbol: str, days: int = 90) -> Optional[dict]:
         """Fetch historical daily OHLCV data.
 

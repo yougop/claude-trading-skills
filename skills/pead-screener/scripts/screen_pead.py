@@ -618,9 +618,21 @@ def _get_candidates_mode_a(client: FMPClient, args) -> list[dict]:
     if not symbols:
         return []
 
-    # Fetch company profiles for market cap filtering
-    print(f"  Fetching profiles for {len(symbols)} symbols...")
-    profiles = client.get_company_profiles(symbols)
+    # Marktkapitalisierung in EINEM Aufruf statt einem je Symbol.
+    # Fork-Aenderung 16.8.2026: get_company_profiles braucht einen Call pro
+    # Symbol; bei 1.125 Earnings-Symbolen war das Budget (900) erschoepft,
+    # bevor Phase 2 ueberhaupt begann. Der Screener-Endpoint liefert dieselbe
+    # Groesse fuer alle Titel oberhalb der Schwelle auf einmal.
+    print(f"  Marktkapitalisierung fuer {len(symbols)} Symbole (1 Aufruf)...")
+    caps = client.get_market_caps_bulk(args.min_market_cap)
+
+    if caps:
+        print(f"  Screener lieferte {len(caps)} Titel ueber der Schwelle")
+        profiles = {}
+    else:
+        # Faellt der Endpoint aus, lieber langsam als gar nicht.
+        print("  WARNUNG: Screener leer -- Rueckfall auf Einzelprofile")
+        profiles = client.get_company_profiles(symbols)
 
     # Build candidates with market cap filter (gap filter deferred to Phase 2
     # where actual price data is available for accurate gap calculation)
@@ -629,10 +641,13 @@ def _get_candidates_mode_a(client: FMPClient, args) -> list[dict]:
 
     for symbol in symbols:
         earning = grade_map.get(symbol, {})
-        profile = profiles.get(symbol, {})
+
+        if caps:
+            market_cap = caps.get(symbol, 0.0)
+        else:
+            market_cap = profiles.get(symbol, {}).get("mktCap", 0) or 0
 
         # Market cap filter
-        market_cap = profile.get("mktCap", 0) or 0
         if market_cap < args.min_market_cap:
             continue
 
