@@ -884,7 +884,14 @@ IDEA_REVIEW_INTERVALS = {
     # Sich entwickelnde Setups: die Basis braucht Zeit, die Pruefung nicht
     "vcp": 7,
     "vcp_developing": 7,
+    "vcp_developing_invalid": 7,
     "canslim": 7,
+    # Themen- und Absicherungsideen: nicht triggergetrieben, aber auch nicht
+    # so traege wie eine Dividendenbewertung. Sie haengen an einem Regime- oder
+    # Heat-Signal, und das dreht in Wochen, nicht in Monaten.
+    "macro_theme_sector_rotation": 7,
+    "macro_hedge_sleeve": 7,
+    "macro_crypto_long_cycle_support_test": 7,
     # Alles andere behaelt DEFAULT_REVIEW_INTERVAL_DAYS.
 }
 
