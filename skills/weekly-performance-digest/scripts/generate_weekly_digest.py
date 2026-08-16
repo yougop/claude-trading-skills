@@ -172,15 +172,50 @@ def calculate_holding_days(thesis: dict) -> int | None:
         return None
 
 
+def planned_stop(thesis: dict) -> tuple[float | None, str]:
+    """Der GEPLANTE Stop bei Einstieg -- nicht der zum Ausstieg gueltige.
+
+    Fork-Aenderung 16.8.2026. Im Original rechnet die R-Multiple gegen
+    ``exit.stop_loss``. Das ist der Stop, wie er beim Ausstieg im Broker
+    stand; unser Prozess zieht ihn bei jeder Order-Aenderung nach. Bei
+    einem Stop-Out ergibt das zwangslaeufig -1,0 -- die Kennzahl leitet nur
+    her, dass der Stop gegriffen hat, und misst keine Plantreue.
+
+    Gemessen an CSCO (12./13.8.2026): Plan-Stop 118,73 -> -3,63R. Gegen
+    ``exit.stop_loss`` von 111,00 (zweimal gelockert, einmal entfernt)
+    stuenden dort -1,00R, und die 28 % Mehrkosten der Stop-Eingriffe
+    verschwaenden spurlos.
+
+    Reihenfolge:
+      1. ``entry.initial_stop``            -- Fork-Feld, wird nie nachgezogen
+      2. ``origin.raw_provenance.stop_price`` -- was der Screener vorgab
+      3. ``exit.stop_loss``                -- Rueckfall, als solcher markiert
+
+    Returns:
+        (Stop, Herkunft). Herkunft ist ``initial`` / ``provenance`` /
+        ``exit_fallback`` / ``none``.
+    """
+    stop = _get(thesis, "entry", "initial_stop")
+    if stop is not None:
+        return stop, "initial"
+    prov = _get(thesis, "origin", "raw_provenance") or {}
+    if isinstance(prov, dict) and prov.get("stop_price") is not None:
+        return prov["stop_price"], "provenance"
+    stop = _get(thesis, "exit", "stop_loss")
+    if stop is not None:
+        return stop, "exit_fallback"
+    return None, "none"
+
+
 def calculate_r_multiple(thesis: dict) -> float | None:
     """R-multiple = realized P&L / initial risk.
 
-    initial risk = (entry.actual_price - exit.stop_loss) * position.shares.
-    Note: stop_loss lives under ``exit`` in the real schema (not ``entry``).
+    initial risk = (entry.actual_price - geplanter Stop) * position.shares.
+    Zur Wahl des Stops siehe ``planned_stop``.
     """
     pnl_dollars, _ = calculate_pnl(thesis)
     entry_price = _get(thesis, "entry", "actual_price")
-    stop_loss = _get(thesis, "exit", "stop_loss")
+    stop_loss, _herkunft = planned_stop(thesis)
     shares = _get(thesis, "position", "shares")
     if None in (pnl_dollars, entry_price, stop_loss, shares):
         return None
@@ -222,6 +257,7 @@ def calculate_metrics(theses: list[dict]) -> dict:
         "r_multiple_stdev": None,
         "avg_mae_pct": None,
         "avg_mfe_pct": None,
+        "r_stop_basis": {},
     }
     if not theses:
         return {"summary": summary, "metrics": metrics}
@@ -235,6 +271,7 @@ def calculate_metrics(theses: list[dict]) -> dict:
     r_multiples: list[float] = []
     mae_vals: list[float] = []
     mfe_vals: list[float] = []
+    r_stop_sources: list[str] = []
 
     for thesis in theses:
         dollars, pct = calculate_pnl(thesis)
@@ -260,6 +297,10 @@ def calculate_metrics(theses: list[dict]) -> dict:
         r = calculate_r_multiple(thesis)
         if r is not None:
             r_multiples.append(r)
+            # Fork: festhalten, WORAUF die R-Multiple beruht. Ein
+            # exit_fallback heisst, der geplante Stop fehlt -- die Zahl ist
+            # dann bei jedem Stop-Out tautologisch -1,0.
+            r_stop_sources.append(planned_stop(thesis)[1])
         # Normalize to the documented sign convention: MAE is adverse (<= 0),
         # MFE is favorable (>= 0). TMC does not clamp, so an always-profitable
         # trade can carry mae_pct > 0 (and vice versa); clamp on read.
@@ -293,6 +334,10 @@ def calculate_metrics(theses: list[dict]) -> dict:
         metrics["r_multiple_stdev"] = (
             round(statistics.stdev(r_multiples), 4) if len(r_multiples) > 1 else 0.0
         )
+    if r_stop_sources:
+        metrics["r_stop_basis"] = {
+            q: r_stop_sources.count(q) for q in sorted(set(r_stop_sources))
+        }
     if mae_vals:
         metrics["avg_mae_pct"] = round(statistics.mean(mae_vals), 4)
     if mfe_vals:
@@ -440,6 +485,13 @@ def generate_markdown_report(digest: dict, from_date: str, to_date: str) -> str:
     lines.append(f"| Largest loser | {_fmt_money(metrics['largest_loser'])} |")
     lines.append(f"| Avg R-multiple | {_fmt_num(metrics['r_multiple_avg'])} |")
     lines.append(f"| R-multiple stdev | {_fmt_num(metrics['r_multiple_stdev'])} |")
+    basis = metrics.get("r_stop_basis") or {}
+    if basis:
+        lines.append(
+            "| R-Basis (geplanter Stop) | "
+            + ", ".join(f"{k}: {v}" for k, v in basis.items())
+            + " |"
+        )
     lines.append(f"| Avg MAE % | {_fmt_num(metrics['avg_mae_pct'])} |")
     lines.append(f"| Avg MFE % | {_fmt_num(metrics['avg_mfe_pct'])} |")
     lines.append(

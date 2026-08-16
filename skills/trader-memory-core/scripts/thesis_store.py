@@ -922,6 +922,8 @@ def _default_thesis() -> dict:
             "conditions": [],
             "actual_price": None,
             "actual_date": None,
+            # Fork: geplanter Stop, wird nie nachgezogen -- siehe Schema.
+            "initial_stop": None,
         },
         "exit": {
             "stop_loss": None,

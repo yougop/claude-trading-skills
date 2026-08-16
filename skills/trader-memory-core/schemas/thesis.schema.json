@@ -45,26 +45,50 @@
       ]
     },
     "setup_type": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Specific setup pattern (e.g., pullback_to_5y_avg_yield)"
     },
     "catalyst": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Catalyst or event driving the thesis"
     },
     "status": {
       "type": "string",
-      "enum": ["IDEA", "ENTRY_READY", "ACTIVE", "PARTIALLY_CLOSED", "CLOSED", "INVALIDATED"]
+      "enum": [
+        "IDEA",
+        "ENTRY_READY",
+        "ACTIVE",
+        "PARTIALLY_CLOSED",
+        "CLOSED",
+        "INVALIDATED"
+      ]
     },
     "status_history": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["status", "at", "reason"],
+        "required": [
+          "status",
+          "at",
+          "reason"
+        ],
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["IDEA", "ENTRY_READY", "ACTIVE", "PARTIALLY_CLOSED", "CLOSED", "INVALIDATED"]
+            "enum": [
+              "IDEA",
+              "ENTRY_READY",
+              "ACTIVE",
+              "PARTIALLY_CLOSED",
+              "CLOSED",
+              "INVALIDATED"
+            ]
           },
           "at": {
             "type": "string",
@@ -73,11 +97,23 @@
           "reason": {
             "type": "string"
           },
-          "shares_sold": {"type": "number", "exclusiveMinimum": 0},
-          "quantity_sold": {"type": "integer", "exclusiveMinimum": 0},
-          "price": {"type": "number"},
-          "proceeds": {"type": "number"},
-          "realized_pnl": {"type": "number"}
+          "shares_sold": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "quantity_sold": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "price": {
+            "type": "number"
+          },
+          "proceeds": {
+            "type": "number"
+          },
+          "realized_pnl": {
+            "type": "number"
+          }
         }
       }
     },
@@ -86,117 +122,354 @@
       "minLength": 1
     },
     "mechanism_tag": {
-      "type": ["string", "null"],
-      "enum": ["behavior", "structure", "uncertain", null]
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "behavior",
+        "structure",
+        "uncertain",
+        null
+      ]
     },
     "evidence": {
       "type": "array",
-      "items": {"type": "string"},
+      "items": {
+        "type": "string"
+      },
       "default": []
     },
     "kill_criteria": {
       "type": "array",
-      "items": {"type": "string"},
+      "items": {
+        "type": "string"
+      },
       "default": []
     },
     "confidence": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Qualitative confidence level (matches hypothesis_card.schema.json)"
     },
     "confidence_score": {
-      "type": ["number", "null"],
+      "type": [
+        "number",
+        "null"
+      ],
       "minimum": 0,
       "maximum": 1
     },
     "entry": {
       "type": "object",
       "properties": {
-        "target_price": {"type": ["number", "null"]},
+        "target_price": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "conditions": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": {
+            "type": "string"
+          },
           "default": []
         },
-        "actual_price": {"type": ["number", "null"]},
-        "actual_date": {"type": ["string", "null"], "format": "date-time"}
+        "actual_price": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "actual_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "initial_stop": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Ursprünglich geplanter Stop bei Einstieg. Wird NIE nachgezogen -- Basis fuer R-Multiple und Plantreue."
+        }
       },
       "additionalProperties": false
     },
     "exit": {
       "type": "object",
       "properties": {
-        "stop_loss": {"type": ["number", "null"]},
-        "stop_loss_pct": {"type": ["number", "null"]},
-        "take_profit": {"type": ["number", "null"]},
-        "take_profit_rr": {"type": ["number", "null"]},
-        "time_stop_days": {"type": ["integer", "null"]},
-        "actual_price": {"type": ["number", "null"]},
-        "actual_date": {"type": ["string", "null"], "format": "date-time"},
+        "stop_loss": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "stop_loss_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "take_profit": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "take_profit_rr": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "time_stop_days": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "actual_price": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "actual_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
         "exit_reason": {
-          "type": ["string", "null"],
-          "enum": ["stop_hit", "target_hit", "time_stop", "invalidated", "manual", null]
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "stop_hit",
+            "target_hit",
+            "time_stop",
+            "invalidated",
+            "manual",
+            null
+          ]
         }
       },
       "additionalProperties": false
     },
     "position": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "properties": {
-        "shares": {"type": "number", "exclusiveMinimum": 0},
-        "shares_remaining": {"type": "number", "minimum": 0},
-        "position_value": {"type": "number"},
-        "risk_dollars": {"type": "number"},
-        "risk_pct_of_account": {"type": ["number", "null"]},
-        "account_type": {"type": ["string", "null"]},
-        "sizing_method": {"type": ["string", "null"]},
+        "shares": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "shares_remaining": {
+          "type": "number",
+          "minimum": 0
+        },
+        "position_value": {
+          "type": "number"
+        },
+        "risk_dollars": {
+          "type": "number"
+        },
+        "risk_pct_of_account": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "account_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sizing_method": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "raw_source": {
           "type": "object",
           "properties": {
-            "skill": {"type": "string"},
-            "file": {"type": "string"},
-            "fields": {"type": "object"}
+            "skill": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string"
+            },
+            "fields": {
+              "type": "object"
+            }
           }
         },
-        "asset_type": {"type": ["string", "null"], "enum": ["equity", "futures", null]},
-        "quantity": {"type": "integer", "exclusiveMinimum": 0},
-        "quantity_remaining": {"type": "integer", "minimum": 0},
-        "quantity_unit": {"type": ["string", "null"], "enum": ["contracts", null]},
-        "multiplier": {"type": "number", "exclusiveMinimum": 0},
-        "contract_symbol": {"type": ["string", "null"]},
-        "direction": {"type": ["string", "null"], "enum": ["LONG", "SHORT", null]},
+        "asset_type": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "equity",
+            "futures",
+            null
+          ]
+        },
+        "quantity": {
+          "type": "integer",
+          "exclusiveMinimum": 0
+        },
+        "quantity_remaining": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "quantity_unit": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "contracts",
+            null
+          ]
+        },
+        "multiplier": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "contract_symbol": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "direction": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "LONG",
+            "SHORT",
+            null
+          ]
+        },
         "contract_spec": {
           "type": "object",
           "properties": {
-            "multiplier": {"type": "number"},
-            "tick_size": {"type": "number"},
-            "tick_value": {"type": "number"},
-            "currency": {"type": "string"},
-            "source": {"type": ["string", "null"]},
-            "verified": {"type": ["string", "null"]}
+            "multiplier": {
+              "type": "number"
+            },
+            "tick_size": {
+              "type": "number"
+            },
+            "tick_value": {
+              "type": "number"
+            },
+            "currency": {
+              "type": "string"
+            },
+            "source": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "verified": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         },
-        "risk_per_contract_usd": {"type": ["number", "null"]},
-        "total_risk_usd": {"type": ["number", "null"]}
+        "risk_per_contract_usd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "total_risk_usd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
       }
     },
     "market_context": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "properties": {
-        "regime": {"type": ["string", "null"]},
-        "breadth_score": {"type": ["number", "null"]},
-        "top_detector_score": {"type": ["number", "null"]},
-        "sector": {"type": ["string", "null"]}
+        "regime": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "breadth_score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "top_detector_score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "sector": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       }
     },
     "monitoring": {
       "type": "object",
       "properties": {
-        "review_interval_days": {"type": "integer", "minimum": 1, "default": 30},
-        "next_review_date": {"type": ["string", "null"], "format": "date"},
-        "last_review_date": {"type": ["string", "null"], "format": "date"},
+        "review_interval_days": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 30
+        },
+        "next_review_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
+        "last_review_date": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date"
+        },
         "review_status": {
           "type": "string",
-          "enum": ["OK", "WARN", "REVIEW"],
+          "enum": [
+            "OK",
+            "WARN",
+            "REVIEW"
+          ],
           "default": "OK"
         },
         "triggers_config": {
@@ -204,43 +477,83 @@
           "items": {
             "type": "object",
             "properties": {
-              "trigger": {"type": "string"},
-              "description": {"type": "string"}
+              "trigger": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
             }
           },
           "default": []
         },
         "alerts": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": {
+            "type": "string"
+          },
           "default": []
         }
       }
     },
     "origin_fingerprint": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Deterministic hash for deduplication (sha256[:16])"
     },
     "origin": {
       "type": "object",
-      "required": ["skill", "output_file"],
+      "required": [
+        "skill",
+        "output_file"
+      ],
       "properties": {
-        "skill": {"type": "string"},
-        "output_file": {"type": "string"},
-        "screening_grade": {"type": ["string", "null"]},
-        "screening_score": {"type": ["number", "null"]},
-        "raw_provenance": {"type": "object", "default": {}}
+        "skill": {
+          "type": "string"
+        },
+        "output_file": {
+          "type": "string"
+        },
+        "screening_grade": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "screening_score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "raw_provenance": {
+          "type": "object",
+          "default": {}
+        }
       }
     },
     "linked_reports": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["skill", "file", "date"],
+        "required": [
+          "skill",
+          "file",
+          "date"
+        ],
         "properties": {
-          "skill": {"type": "string"},
-          "file": {"type": "string"},
-          "date": {"type": "string", "format": "date"}
+          "skill": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          }
         }
       },
       "default": []
@@ -248,13 +561,48 @@
     "outcome": {
       "type": "object",
       "properties": {
-        "pnl_dollars": {"type": ["number", "null"]},
-        "pnl_pct": {"type": ["number", "null"]},
-        "holding_days": {"type": ["integer", "null"]},
-        "mae_pct": {"type": ["number", "null"]},
-        "mfe_pct": {"type": ["number", "null"]},
-        "mae_mfe_source": {"type": ["string", "null"]},
-        "lessons_learned": {"type": ["string", "null"]}
+        "pnl_dollars": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "pnl_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "holding_days": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "mae_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mfe_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mae_mfe_source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lessons_learned": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       }
     }
   },
