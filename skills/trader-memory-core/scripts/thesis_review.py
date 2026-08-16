@@ -62,16 +62,24 @@ def compute_mae_mfe(thesis: dict, price_adapter: Any | None = None) -> dict[str,
     if not prices:
         return result
 
-    closes = [p["close"] for p in prices]
-    min_close = min(closes)
-    max_close = max(closes)
+    # Fork 16.8.2026: MAE/MFE ist die MAXIMALE Auslenkung, und die liegt
+    # innertaegig. Ueber Schlusskurse gerechnet faellt sie zu klein aus --
+    # genau die Zahl, an der eine 2R-Teilverkaufsregel kalibriert werden
+    # soll, waere damit systematisch zu niedrig. Liefert die Quelle keine
+    # Hochs/Tiefs, bleibt es beim alten Verhalten, sichtbar an der Quelle.
+    tiefs = [p["low"] for p in prices if p.get("low") is not None]
+    hochs = [p["high"] for p in prices if p.get("high") is not None]
+    if len(tiefs) == len(prices) and len(hochs) == len(prices):
+        min_kurs, max_kurs = min(tiefs), max(hochs)
+        quelle = "fmp_eod_intraday"
+    else:
+        closes = [p["close"] for p in prices]
+        min_kurs, max_kurs = min(closes), max(closes)
+        quelle = "fmp_eod_close"
 
-    mae_pct = ((min_close - entry_price) / entry_price) * 100
-    mfe_pct = ((max_close - entry_price) / entry_price) * 100
-
-    result["mae_pct"] = round(mae_pct, 2)
-    result["mfe_pct"] = round(mfe_pct, 2)
-    result["mae_mfe_source"] = "fmp_eod"
+    result["mae_pct"] = round(((min_kurs - entry_price) / entry_price) * 100, 2)
+    result["mfe_pct"] = round(((max_kurs - entry_price) / entry_price) * 100, 2)
+    result["mae_mfe_source"] = quelle
 
     return result
 
@@ -490,6 +498,11 @@ def main(argv: list[str] | None = None) -> int:
 
     # postmortem
     pm_p = sub.add_parser("postmortem", help="Generate postmortem for a thesis")
+    pm_p.add_argument(
+        "--no-prices",
+        action="store_true",
+        help="MAE/MFE nicht berechnen (kein FMP-Aufruf)",
+    )
     pm_p.add_argument("thesis_id")
     pm_p.add_argument("--journal-dir", default=None)
 
@@ -514,7 +527,21 @@ def main(argv: list[str] | None = None) -> int:
         results = thesis_store.list_review_due(Path(args.state_dir), as_of)
         print(json.dumps(results, indent=2))
     elif args.command == "postmortem":
-        path = generate_postmortem(args.thesis_id, args.state_dir, journal_dir=args.journal_dir)
+        # Fork 16.8.2026: Ohne Adapter gibt compute_mae_mfe grundsaetzlich
+        # None zurueck -- MAE/MFE blieben deshalb bei JEDEM Postmortem leer.
+        # Kein fehlendes Datum, eine nicht verdrahtete Leitung.
+        adapter = None
+        if not getattr(args, "no_prices", False):
+            try:
+                from fmp_price_adapter import FMPPriceAdapter
+
+                adapter = FMPPriceAdapter()
+            except Exception as e:  # kein Key, kein Netz -> weiter ohne
+                logger.warning("MAE/MFE uebersprungen (kein Preis-Adapter): %s", e)
+        path = generate_postmortem(
+            args.thesis_id, args.state_dir, price_adapter=adapter,
+            journal_dir=args.journal_dir,
+        )
         print(f"Postmortem generated: {path}")
     elif args.command == "summary":
         if not any([args.ticker, args.status, args.since, args.as_of, args.by, args.compact]):

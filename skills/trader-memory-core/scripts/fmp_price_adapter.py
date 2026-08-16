@@ -66,11 +66,23 @@ class FMPPriceAdapter:
             # FMP returns newest first; reverse to oldest first.
             # Stable EOD endpoint no longer exposes `adjClose`; fall back to `close`.
             # Patched 2026-05-22 (stable shape).
-            result = [
-                {"date": item["date"], "close": item.get("adjClose") or item["close"]}
-                for item in reversed(historical)
-                if "date" in item and ("adjClose" in item or "close" in item)
-            ]
+            # Fork 16.8.2026: high/low mitgeben. MAE/MFE ist per Definition
+            # die maximale Auslenkung -- die findet innertaegig statt, nicht
+            # zum Schluss. "close" bleibt unveraendert, damit bestehende
+            # Aufrufer nichts merken.
+            result = []
+            for item in reversed(historical):
+                if "date" not in item or not ("adjClose" in item or "close" in item):
+                    continue
+                zeile = {
+                    "date": item["date"],
+                    "close": item.get("adjClose") or item["close"],
+                }
+                if item.get("high") is not None:
+                    zeile["high"] = item["high"]
+                if item.get("low") is not None:
+                    zeile["low"] = item["low"]
+                result.append(zeile)
             return result
 
         if last_error:

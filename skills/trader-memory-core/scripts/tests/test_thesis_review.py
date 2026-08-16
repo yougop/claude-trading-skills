@@ -95,7 +95,60 @@ def test_compute_mae_mfe_with_mock_adapter(tmp_path: Path):
     result = thesis_review.compute_mae_mfe(thesis, adapter)
     assert result["mae_pct"] == pytest.approx(-3.33, abs=0.01)
     assert result["mfe_pct"] == pytest.approx(13.33, abs=0.01)
-    assert result["mae_mfe_source"] == "fmp_eod"
+    # Fork: ohne high/low faellt die Rechnung auf Schlusskurse zurueck und
+    # sagt das in der Quelle. Frueher hiess beides "fmp_eod".
+    assert result["mae_mfe_source"] == "fmp_eod_close"
+
+
+def test_compute_mae_mfe_nutzt_intraday_hoch_und_tief(tmp_path: Path):
+    """Fork: liegen high/low vor, zaehlt die INNERTAEGIGE Auslenkung.
+
+    Ueber Schlusskurse faellt MAE/MFE zu klein aus -- genau die Zahl, an der
+    eine 2R-Teilverkaufsregel kalibriert werden soll. Hier liegt das Tief
+    unter jedem Schluss und das Hoch ueber jedem Schluss.
+    """
+    state_dir = tmp_path / "theses"
+    tid = _create_closed_thesis(state_dir, entry_price=150.0, exit_price=165.0)
+    thesis = thesis_store.get(state_dir, tid)
+
+    adapter = MockPriceAdapter(
+        [
+            {"date": "2026-03-01", "close": 150.0, "high": 151.0, "low": 149.0},
+            {"date": "2026-03-05", "close": 145.0, "high": 146.0, "low": 138.0},
+            {"date": "2026-03-15", "close": 170.0, "high": 180.0, "low": 168.0},
+            {"date": "2026-04-01", "close": 165.0, "high": 166.0, "low": 164.0},
+        ]
+    )
+
+    result = thesis_review.compute_mae_mfe(thesis, adapter)
+    # Tief 138 statt Schluss 145, Hoch 180 statt Schluss 170
+    assert result["mae_pct"] == pytest.approx(-8.0, abs=0.01)
+    assert result["mfe_pct"] == pytest.approx(20.0, abs=0.01)
+    assert result["mae_mfe_source"] == "fmp_eod_intraday"
+
+
+def test_compute_mae_mfe_teilweise_intraday_faellt_zurueck(tmp_path: Path):
+    """Fehlt bei EINEM Tag high/low, zaehlen Schlusskurse -- nicht gemischt.
+
+    Ein Mischbetrieb waere schlimmer als der Rueckfall: das Ergebnis haenge
+    dann davon ab, welche Tage zufaellig vollstaendig geliefert wurden.
+    """
+    state_dir = tmp_path / "theses"
+    tid = _create_closed_thesis(state_dir, entry_price=150.0, exit_price=165.0)
+    thesis = thesis_store.get(state_dir, tid)
+
+    adapter = MockPriceAdapter(
+        [
+            {"date": "2026-03-01", "close": 150.0, "high": 151.0, "low": 149.0},
+            {"date": "2026-03-05", "close": 145.0},  # unvollstaendig
+            {"date": "2026-03-15", "close": 170.0, "high": 180.0, "low": 168.0},
+        ]
+    )
+
+    result = thesis_review.compute_mae_mfe(thesis, adapter)
+    assert result["mae_pct"] == pytest.approx(-3.33, abs=0.01)
+    assert result["mfe_pct"] == pytest.approx(13.33, abs=0.01)
+    assert result["mae_mfe_source"] == "fmp_eod_close"
 
 
 def test_compute_mae_mfe_no_adapter_returns_nulls(tmp_path: Path):
