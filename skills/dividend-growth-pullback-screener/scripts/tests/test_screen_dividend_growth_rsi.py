@@ -185,7 +185,10 @@ def test_fmp_decimal_roe_and_margin_are_converted_to_percent(monkeypatch):
     client = MagicMock()
     client.rate_limit_reached = False
     client.screen_stocks.return_value = [
-        {"symbol": "TEST", "companyName": "Test Inc", "price": 100, "sector": "Tech"}
+        # lastAnnualDividend gehoert zur Screener-Antwort und wird seit dem
+        # Rendite-Vorfilter gebraucht: 2 $ auf 100 $ = 2 %, mitten im Band.
+        {"symbol": "TEST", "companyName": "Test Inc", "price": 100, "sector": "Tech",
+         "lastAnnualDividend": 2.0, "marketCap": 5_000_000_000}
     ]
     client.get_dividend_history.return_value = [{}]
     client.get_historical_prices.return_value = [{"close": 100}] * 30
@@ -220,3 +223,35 @@ def test_fmp_decimal_roe_and_margin_are_converted_to_percent(monkeypatch):
 
     assert result["roe"] == 25.0
     assert result["profit_margin"] == 12.5
+
+
+def test_yield_vorfilter_kappt_das_universum_vor_den_teuren_abrufen():
+    """Der Vorfilter muss VOR den Je-Symbol-Abrufen greifen.
+
+    Ohne ihn lief der FMP-only-Pfad ueber die rohe Marktkapitalisierungsliste
+    (5000+ Namen am 17.8.2026) und kam nach neun Minuten zu keinem Ergebnis.
+    Geprueft wird deshalb nicht nur das Resultat, sondern dass fuer die
+    aussortierten Namen kein einziger Detailabruf stattfindet.
+    """
+    from unittest.mock import MagicMock, patch
+    import screen_dividend_growth_rsi as m
+
+    client = MagicMock()
+    client.rate_limit_reached = False  # sonst bricht die Schleife sofort ab
+    client.screen_stocks.return_value = [
+        {"symbol": "OHNE", "companyName": "Kein Dividendenzahler", "price": 100,
+         "lastAnnualDividend": 0.0, "marketCap": 9_000_000_000},
+        {"symbol": "HOCH", "companyName": "REIT-artig", "price": 100,
+         "lastAnnualDividend": 7.0, "marketCap": 8_000_000_000},   # 7 % — ueber dem Band
+        {"symbol": "ETF", "companyName": "Ein Fonds", "price": 100,
+         "lastAnnualDividend": 2.0, "marketCap": 7_000_000_000, "isEtf": True},
+        {"symbol": "GUT", "companyName": "Dividendenwachstum", "price": 100,
+         "lastAnnualDividend": 2.0, "marketCap": 6_000_000_000},   # 2 % — im Band
+    ]
+    client.get_dividend_history.return_value = None  # Analyse bricht danach ab
+
+    with patch.object(m, "FMPClient", return_value=client):
+        m.screen_dividend_growth_pullbacks("dummy-key", min_yield=1.5)
+
+    geprueft = [c.args[0] for c in client.get_dividend_history.call_args_list]
+    assert geprueft == ["GUT"], f"Detailabrufe fuer {geprueft} statt nur GUT"

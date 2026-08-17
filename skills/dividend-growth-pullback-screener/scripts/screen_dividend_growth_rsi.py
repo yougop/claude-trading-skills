@@ -34,6 +34,12 @@ from typing import Optional
 import requests
 
 
+# Obergrenze des Renditebands, identisch zum FINVIZ-Filter fa_div_0.5to3.
+# Ueber 3 % liegen ueberwiegend REITs und Versorger — andere Anlageklasse als
+# die Dividendenwachstumswerte, auf die dieser Screener zielt.
+YIELD_BAND_MAX = 3.0
+
+
 class FINVIZClient:
     """Client for FINVIZ Elite API"""
 
@@ -825,6 +831,42 @@ def screen_dividend_growth_pullbacks(
         print("Step 1: Initial screening using FMP Stock Screener...", file=sys.stderr)
         candidates = client.screen_stocks(min_market_cap=2000000000)
         print(f"Found {len(candidates)} initial candidates", file=sys.stderr)
+
+        # Yield pre-filter from the screener payload -- free, no extra calls.
+        #
+        # Without it this path takes the raw market-cap universe (5000+ names on
+        # 2026-08-17) and spends several FMP calls per symbol on dividend
+        # history, prices and fundamentals. Measured that day: the run had
+        # produced nothing after nine minutes. Same defect class as the
+        # market-wide earnings calendar, and the same fix the sibling
+        # value-dividend-screener already documents: gate on
+        # lastAnnualDividend / price before paying per symbol.
+        #
+        # The band is the screener's own FINVIZ criterion (0.5-3%, "captures
+        # dividend growers without REITs/utilities"), with the lower bound
+        # taken from --min-yield so the two paths agree. Names without a
+        # dividend cannot pass a dividend-growth screen, so dropping them
+        # removes no candidate that could have qualified.
+        vorher = len(candidates)
+        gefiltert = []
+        for item in candidates:
+            if item.get("isEtf") or item.get("isFund"):
+                continue  # no income statement to analyze downstream
+            preis = item.get("price") or 0
+            div = item.get("lastAnnualDividend") or 0
+            if preis <= 0 or div <= 0:
+                continue
+            rendite = div / preis * 100
+            if min_yield <= rendite <= YIELD_BAND_MAX:
+                item = dict(item)
+                item["_est_yield"] = rendite
+                gefiltert.append(item)
+        # By market cap, like the sibling screener: sorting by estimated yield
+        # surfaces distorted values from special distributions and stale data.
+        gefiltert.sort(key=lambda x: x.get("marketCap") or 0, reverse=True)
+        candidates = gefiltert
+        print(f"Yield pre-filter {min_yield:.1f}-{YIELD_BAND_MAX:.1f}%: "
+              f"{vorher} -> {len(candidates)} candidates", file=sys.stderr)
 
     if not candidates:
         print("ERROR: No candidates found or API error", file=sys.stderr)
