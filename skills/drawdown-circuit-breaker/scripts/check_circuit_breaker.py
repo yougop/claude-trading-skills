@@ -432,6 +432,27 @@ def collect_terminal_results(theses: Iterable[dict]) -> tuple[list[TerminalResul
     for thesis in theses:
         if thesis.get("status") not in TERMINAL_STATUSES:
             continue
+        # Eine verworfene Idee ist KEIN Handelsergebnis.
+        #
+        # Der Zaehler fuer die Verlustserie laeuft rueckwaerts und bricht beim
+        # ersten nicht-negativen Ergebnis ab. Wurden nie eingegangene Thesen
+        # als INVALIDATED mit pnl 0 archiviert, brechen sie die Serie — obwohl
+        # nie Geld im Risiko war. Am 17.8.2026 fiel consecutive_losses dadurch
+        # von 3 auf 0, allein weil fuenf Watchlist-Ideen ordentlich verworfen
+        # wurden. Die Sicherung waere still ausgeschaltet gewesen.
+        #
+        # Die Unterscheidung ist die zwischen den beiden Endzustaenden:
+        # CLOSED heisst, ein Trade wurde geschlossen — das zaehlt immer.
+        # INVALIDATED heisst, eine Idee wurde verworfen; die zaehlt nur, wenn
+        # tatsaechlich eine Position bestand.
+        if thesis.get("status") == "INVALIDATED":
+            eingegangen = bool(
+                thesis.get("position")
+                or (thesis.get("entry") or {}).get("actual_price") is not None
+                or (thesis.get("outcome") or {}).get("holding_days")
+            )
+            if not eingegangen:
+                continue
         outcome = thesis.get("outcome", {})
         if not isinstance(outcome, dict) or outcome.get("pnl_dollars") is None:
             warnings.append(

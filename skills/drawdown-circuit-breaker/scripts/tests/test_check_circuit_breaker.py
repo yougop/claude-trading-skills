@@ -11,6 +11,8 @@ import pytest
 import yaml
 from check_circuit_breaker import (
     CircuitConfig,
+    _consecutive_losses,
+    collect_terminal_results,
     evaluate_circuit_breaker,
     generate_markdown_report,
     load_theses,
@@ -1502,3 +1504,27 @@ def test_overflowing_derived_threshold_fails_without_report(tmp_path: Path):
 
     assert exit_code == 1
     assert not output_dir.exists()
+
+
+def test_verworfene_idee_bricht_die_verlustserie_nicht(tmp_path):
+    """Eine nie eingegangene Idee ist kein Handelsergebnis.
+
+    Der Serienzaehler laeuft rueckwaerts und bricht beim ersten
+    nicht-negativen Ergebnis ab. Wird eine Watchlist-Idee ordentlich als
+    INVALIDATED mit pnl 0 archiviert, traegt sie das juengste Datum und
+    stuende damit am Ende der Reihe — die Serie waere gebrochen, obwohl nie
+    Geld im Risiko war. Am 17.8.2026 fiel consecutive_losses so von 3 auf 0,
+    allein durch das Aufraeumen der Watchlist.
+    """
+    state = tmp_path / "theses"
+    for i, tag in enumerate(("2026-08-10", "2026-08-12", "2026-08-14")):
+        write_thesis(state, f"th_verlust_{i}", status="CLOSED",
+                     pnl_dollars=-250.0, exit_date=f"{tag}T16:00:00-04:00")
+    # Danach archiviert, juengeres Datum, nie eingegangen
+    write_thesis(state, "th_verworfen", status="INVALIDATED",
+                 pnl_dollars=0.0, exit_date="2026-08-17T16:00:00-04:00")
+
+    thesen, _, _ = load_theses(state)
+    ergebnisse, _ = collect_terminal_results(thesen)
+    anzahl, _ = _consecutive_losses(ergebnisse)
+    assert anzahl == 3, f"Serie gebrochen durch verworfene Idee: {anzahl} statt 3"
