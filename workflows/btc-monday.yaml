@@ -1,0 +1,201 @@
+schema_version: 1
+id: btc-monday
+display_name: BTC Monday Check
+cadence: weekly
+estimated_minutes: 12
+target_users:
+  - part-time-swing-trader
+difficulty: intermediate
+api_profile: fmp-required
+
+when_to_run: >-
+  Every Monday, as the FIRST block of the session — before the US-equity
+  morning routine. Crypto settles its weekly candle on Sunday, so Monday is
+  the earliest moment the weekly-breakout trigger is final. The whole block is
+  independent of US pre-market timing, which is exactly why it goes first:
+  nothing in it competes for the 15:30 CEST order window.
+
+when_not_to_run: >-
+  Not a buy signal generator. The only actionable rule in this workflow is the
+  weekly-close breakout over the 10-week high; every other output is context.
+  Do not front-run the trigger on a favourable regime or on-chain reading —
+  that is the failure mode this ordering is designed to prevent, since the
+  narrative steps run BEFORE the mechanical one and would otherwise colour it.
+
+required_skills:
+  - crypto-regime-analyzer
+  - crypto-asset-analysis
+  - trader-memory-core
+
+artifacts:
+  - id: crypto_regime_report
+    produced_by_step: 2
+    required: true
+  - id: crypto_asset_report
+    produced_by_step: 3
+    required: true
+  - id: btc_levels
+    produced_by_step: 4
+    required: true
+  - id: btc_thesis_review
+    produced_by_step: 5
+    required: true
+  - id: btc_vault_note
+    produced_by_step: 5
+    required: true
+
+steps:
+  - step: 1
+    name: Refresh regime inputs (incremental)
+    command: |
+      python3 local-tools/crypto_index.py --nur-heute
+      source claude-trading-skills/.envrc && python3 local-tools/crypto_snapshot_fmp.py
+    notes: >-
+      --nur-heute is the point of this step: one CoinGecko /global call instead
+      of ~45 history calls. The full run (without the flag) took over ten
+      minutes on 2026-08-17, almost entirely in 429 backoffs, and produced the
+      identical dominance value (56.22%). Run the FULL version only when
+      --nur-heute reports a gap in the 31-day chain, when it warns that the
+      universe is stale (>14 days), or when crypto_swing_screener needs a fresh
+      exbtc_index.json. Prices already come from FMP; market cap deliberately
+      does not — measured 2026-08-15, max deviation 1.471pp against a 0.5pp
+      deadband.
+    decision_gate: false
+
+  - step: 2
+    name: Read crypto regime
+    skill: crypto-regime-analyzer
+    command: |
+      .venv/bin/python skills/crypto-regime-analyzer/scripts/crypto_regime_analyzer.py \
+        --input-json reports/crypto_snapshot.json --output-dir reports/
+      python3 local-tools/crypto_gate.py
+    produces:
+      - crypto_regime_report
+    decision_gate: true
+    decision_question: >-
+      RISK_ON / NEUTRAL / RISK_OFF, and does crypto_gate.py exit 0 or 1? The
+      gate blocks screener runs and orders — it does NOT block the rest of this
+      workflow, which is monitoring, not entry.
+    notes: >-
+      Report the component table, not just the score. The composite moves
+      slowly; the components are where the change shows. Note explicitly
+      whether all 6 components have data — BTC Dominance was NO DATA until
+      2026-08-17.
+
+  - step: 3
+    name: Deep-dive BTC (on-chain, leverage, valuation)
+    skill: crypto-asset-analysis
+    command: >-
+      .venv/bin/python skills/crypto-asset-analysis/scripts/crypto_asset_analysis.py
+      --ticker BTC --output-dir reports/
+    consumes:
+      - crypto_regime_report
+    produces:
+      - crypto_asset_report
+    decision_gate: false
+    notes: >-
+      The script measures, Claude judges — it emits no rating by design, and
+      that stays true: the BUY/HOLD/SELL call written into the vault in step 5
+      is Claude's judgement passed in as data, never something the script
+      computes. It is MANDATORY every week, with confidence and the strongest
+      counter-argument beside it (CLAUDE.md, Rolle). A missing or stale one is
+      printed in the note as a warning callout rather than silently carried
+      forward — an assessment that quietly stays from last week looks like this
+      week's. Two things to check every time rather than copy: (a) the core diagnostic
+      quadrant states a direction but not a magnitude relative to the
+      percentile level; a +3% usage trend sitting at the 4th percentile of the
+      year is noise on a floor, not a recovery. (b) Long/short ratio and
+      funding percentiles are the sharpest read in the report — crowded longs
+      in a downtrend argue against any bottom thesis.
+
+  - step: 4
+    name: Recompute OUR levels — trigger and kill
+    command: |
+      # Claude holt die Bars per MCP (Repo-Skripte haben keinen Alpaca-Zugang,
+      # CLAUDE.md Regel 5) und legt den Rohabruf ab:
+      #   get_crypto_bars symbols="BTC/USD" timeframe="1Day" days=200 sort=asc
+      #     -> claude-trading-skills/state/btc_bars.json   {"bars": {"BTC/USD": [...]}}
+      python3 local-tools/btc_levels.py \
+        --json claude-trading-skills/reports/btc_levels.json --note
+      # Exit 0 = nichts passiert · 10 = Trigger · 20 = Kill · 3 = Rohabruf veraltet
+      # --note schreibt den Levels-Block in 05_Watchlist/BTC.md (vor ## Charts)
+    produces:
+      - btc_levels
+    decision_gate: true
+    decision_question: >-
+      Did the weekly close exceed the highest high of the 10 completed prior
+      weeks (entry trigger), or fall below the post-ATH low (kill criterion)?
+    notes: >-
+      THE TRIGGER IS A ROLLING NUMBER. It is the highest HIGH of the 10
+      completed prior weeks and changes every Monday as old weeks leave the
+      window. Never copy it from a note — on 2026-08-17 the figure carried in
+      CLAUDE.md and the vault was one window stale (67,300 quoted, 74,006
+      actual). ALPACA IS THE SOURCE AND MUST STAY ALPACA: the thesis levels are
+      defined in Alpaca prices, and FMP reads the 2026-06-28 weekly close as
+      59,474.01 against Alpaca's 59,476.28 — measuring the 59,476 kill level
+      against FMP reports a kill that did not happen. Same defect in the cached
+      reports/crypto_bars_alpaca_clean.json, which is FMP-derived. Deviations
+      run $2-28 on highs, immaterial at 17% distance but decisive on a marginal
+      breakout.
+
+  - step: 5
+    name: Record the review and refresh the vault note
+    skill: trader-memory-core
+    consumes:
+      - crypto_regime_report
+      - crypto_asset_report
+      - btc_levels
+    produces:
+      - btc_thesis_review
+      - btc_vault_note
+    command: |
+      # 1 — Befund in die These (Single Source of Truth)
+      .venv/bin/python skills/trader-memory-core/scripts/thesis_store.py \
+        mark-reviewed <thesis_id> --review-date <today> --outcome OK|WARN|REVIEW \
+        --review-interval-days 7 --notes '<...>'
+      .venv/bin/python skills/trader-memory-core/scripts/thesis_store.py doctor
+      # 2 — Note neu erzeugen (These -> Kopfteil der Note)
+      python3 local-tools/obsidian_export.py \
+        --repo-root /home/volker/trading/claude-trading-skills \
+        --vault-dir "/mnt/c/Users/PC/Documents/Volker-Brain/10-Themen/Trading"
+      # 3 — die drei erhaltenen Bloecke nachziehen. ALLE DREI, jeden Montag:
+      #     ohne sie steht in der Note ein Stand von letzter Woche, der
+      #     aussieht wie der von heute.
+      #     Die Einschaetzung ist PFLICHT und muss jede Woche neu gesetzt
+      #     werden — ohne --rating bleibt die der Vorwoche stehen und wird im
+      #     Block als veraltet markiert.
+      python3 local-tools/analyzer_in_note.py --ticker BTC \
+        --rating BUY|HOLD|SELL --konfidenz '<hoch|mittel|niedrig>' \
+        --begruendung '<2-3 Saetze, die die Zahlen benennen>' \
+        --gegenargument '<das staerkste Argument dagegen>'
+      source claude-trading-skills/.envrc
+      python3 local-tools/charts_aktualisieren.py --ticker BTC   # Weekly + Daily
+    decision_gate: false
+    notes: >-
+      The thesis is the single source of truth and the top of the note is
+      generated from it — never edit that part by hand. Everything from the
+      earliest of '## Levels' / '## Charts' survives a re-export, and those
+      blocks are written by tools, not by hand either: btc_levels.py --note
+      (step 4), analyzer_in_note.py, charts_aktualisieren.py. Each block
+      carries its own date in the heading, so a stale one is visible instead
+      of merely wrong. Order in the note is deliberate — Levels first (that is
+      what the note is opened for), then the charts, then the analyzer detail.
+      Volker asked for this on 2026-08-17 after the note had drifted to a
+      two-day-old analyzer block and three-quarters review log.
+
+  - step: 6
+    name: Report
+    decision_gate: false
+    notes: >-
+      Lead with the decision: trigger fired or not, kill intact or not, and the
+      distance. Regime and on-chain are context for the NEXT weeks, not
+      arguments for acting today. Name explicitly anything that contradicts the
+      skills' own headline reading.
+
+manual_review:
+  - Did the weekly trigger fire? If not, state the distance and the rolling schedule.
+  - Is the kill level intact? Measure against live Alpaca bars, not the cached file.
+  - Does the regime or the on-chain read change the POSTURE, or only the narrative?
+  - Guard against front-running: regime and on-chain never justify entering early.
+
+journal_destination: trader-memory-core

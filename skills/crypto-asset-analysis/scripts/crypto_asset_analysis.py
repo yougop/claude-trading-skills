@@ -101,6 +101,11 @@ def build_network_usage(data: dict) -> dict[str, Any]:
         out[key] = {
             "latest": series[-1],
             "percentile": m.percentile_rank(series, series[-1]),
+            # Beide Masse, weil die Tabelle das robuste braucht und der
+            # Endpunktwert als Rohzahl erhalten bleiben soll. Siehe
+            # metrics.median_change: die Paarung "Steigung + Endpunktwert"
+            # hat den Report schon einmal sich selbst widersprechen lassen.
+            "median_change_30d_pct": m.median_change(series, 30),
             "change_30d_pct": m.pct_change(series, 30),
             "trend_30d": m.trend_direction(series, 30),
         }
@@ -443,7 +448,7 @@ def render_markdown(result: dict) -> str:
             lines.append(
                 f"| {label} | {_fmt(block['latest'] * scale, '', 0)} | "
                 f"{_pct_label(block['percentile'])} | {block.get('trend_30d') or '—'} "
-                f"({_fmt(block.get('change_30d_pct'), ' %')}) |"
+                f"({_fmt(block.get('median_change_30d_pct'), ' %')}) |"
             )
 
     lines += [
