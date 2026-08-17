@@ -9,6 +9,14 @@ target_users:
 difficulty: intermediate
 api_profile: fmp-required
 
+when_to_run_zusatz_de: >-
+  ZWEI LAEUFE am Tag, und der zweite ist der wichtigere: mittags zum Finden,
+  gegen 16:30 (eine Stunde nach Eroeffnung) zum Handeln. Ein Mittagslauf
+  arbeitet zwangslaeufig mit dem Schluss des VORTAGES als entry_reference; wer
+  daraus einen Orderpreis macht, kauft auf dem Hoch von gestern. Dazu der
+  Near-Close-Scan gegen 21:45, fuer den die Stockbee-Screener ausdruecklich
+  gebaut sind. Belegt an EPD am 17.8.2026.
+
 when_to_run: >-
   Only after market-regime-daily has produced a non-restrictive exposure
   decision. Identifies swing trade candidates and builds entry plans.
@@ -186,6 +194,25 @@ steps:
     name: Build entry plan
     name_ja: エントリー計画を作成する
     skill: breakout-trade-planner
+    # PFLICHT, nicht optional (Volker, 17.8.2026). Aber der Planer verlangt
+    # VCP-Screener-Form (results[], valid_vcp, execution_state) — Stockbee-Burst-
+    # und Hammer-Kandidaten passen nicht hinein, und valid_vcp zu faelschen
+    # wuerde genau das Gate aushebeln, fuer das er gebaut ist.
+    #
+    #   VCP-Kandidat    -> plan_breakout_trades.py direkt
+    #   Burst / Hammer  -> Prinzip anwenden statt Skill erzwingen:
+    #                      pre_place    = Stop-Limit UEBER dem Trigger-Hoch,
+    #                                     fuellt nur bei Fortsetzung
+    #                      post_confirm = Limit erst nach Bestaetigung im
+    #                                     laufenden Handel
+    #
+    # ANLASS: EPD am 17.8.2026. Der Screener lief um 13:53 und nahm den
+    # Freitagsschluss 38,90 als entry_reference — zugleich das Tageshoch
+    # (close_location 100 %). Montags dort limitiert gekauft heisst: auf dem
+    # Vortageshoch gekauft. EPD fiel am selben Tag auf 38,28. Ein Stop-Limit
+    # ueber 38,90 haette nicht gefuellt. Die Skill-Referenz nennt die
+    # entry_reference ausdruecklich einen "indicative planning price" —
+    # eine Planungsmarke ist kein Orderpreis.
     optional: true
     consumes:
       - validated_setups
